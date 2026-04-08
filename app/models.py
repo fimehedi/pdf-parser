@@ -110,12 +110,31 @@ class Exports(BaseModel):
     html_path: str
     tables_dir: str | None = None
     images_dir: str | None = None
+    question_bank_path: str | None = None
 
 
 class ConfidenceSummary(BaseModel):
     overall: Confidence
     components: dict[str, Confidence]
     notes: list[str] = Field(default_factory=list)
+
+
+class McqOption(BaseModel):
+    label: str
+    text: str
+
+
+class McqQuestion(BaseModel):
+    question_id: str
+    page_index: int = Field(ge=0)
+    stem: str
+    options: list[McqOption] = Field(default_factory=list)
+    correct_option_label: str | None = None
+    correct_answer_text: str | None = None
+    source: Literal["text", "table"] = "text"
+    source_table_id: str | None = None
+    source_block_ids: list[str] = Field(default_factory=list)
+    confidence: Confidence
 
 
 class CanonicalDocument(BaseModel):
@@ -126,6 +145,7 @@ class CanonicalDocument(BaseModel):
     blocks: list[Block]
     tables: list[Table] = Field(default_factory=list)
     images: list[ExtractedImage] = Field(default_factory=list)
+    question_bank: list[McqQuestion] = Field(default_factory=list)
     exports: Exports
     confidence: ConfidenceSummary
 

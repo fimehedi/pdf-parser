@@ -1,0 +1,49 @@
+# Full Bangla + English profile: Tesseract 5 (LSTM OEM 1) + EasyOCR on GPU,
+# consensus boost, 0.90 review threshold. Use: --ocr-config configs/ocr_config.full.yaml
+#
+# Requires: NVIDIA GPU + CUDA for EasyOCR GPU (see PyTorch CUDA install). CPU still runs but slower.
+# Tesseract: install `tesseract-lang` with ben+eng; optional tessdata_best for higher accuracy.
+
+ocr:
+  engines: ["tesseract", "easyocr"]
+  confidence_threshold: 0.90
+  consensus_boost: true
+  consensus_min_similarity: 0.78
+  consensus_boost_delta: 0.10
+  bangla_easyocr_weight_bonus: 0.06
+  engine_weights:
+    easyocr: 1.08
+    tesseract: 1.0
+    google_vision: 1.02
+
+languages:
+  tesseract: ["ben", "eng"]
+  easyocr: ["bn", "en"]
+
+google_vision:
+  enabled: false
+
+tesseract:
+  psm: 6
+  oem: 1
+  config_extra: ""
+  timeout_seconds: 120
+
+easyocr:
+  gpu: true
+  readtext:
+    mag_ratio: 1.65
+    text_threshold: 0.62
+    low_text: 0.35
+    link_threshold: 0.35
+    batch_size: 8
+
+preprocess:
+  profile: bangla_scan
+
+segmentation:
+  mode: blocks
+  min_block_area_px: 8000
+
+semantic:
+  extract_question_bank: true

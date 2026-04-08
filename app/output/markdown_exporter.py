@@ -16,6 +16,8 @@ def export_markdown(doc: CanonicalDocument, path: str | Path) -> Path:
     lines.append(f"- Pages: **{doc.metadata.page_count}**")
     lines.append(f"- Languages: **{', '.join(doc.metadata.languages)}**")
     lines.append(f"- Confidence (overall): **{doc.confidence.overall.score:.2f}**")
+    if doc.question_bank:
+        lines.append(f"- Question bank (MCQ): **{len(doc.question_bank)}** item(s)")
     lines.append("")
 
     blocks_by_page: dict[int, list] = {}

@@ -3,7 +3,7 @@
   "$id": "https://example.local/schemas/canonical_document_schema.json",
   "title": "CanonicalDocument",
   "type": "object",
-  "required": ["schema_version", "source", "metadata", "pages", "blocks", "exports", "confidence"],
+  "required": ["schema_version", "source", "metadata", "pages", "blocks", "exports", "confidence", "question_bank"],
   "properties": {
     "schema_version": { "type": "string", "const": "1.0.0" },
     "source": {
@@ -51,6 +51,37 @@
       "type": "array",
       "items": { "$ref": "table_schema.json#/$defs/Table" }
     },
+    "question_bank": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["question_id", "page_index", "stem", "options", "source", "confidence"],
+        "properties": {
+          "question_id": { "type": "string" },
+          "page_index": { "type": "integer", "minimum": 0 },
+          "stem": { "type": "string" },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["label", "text"],
+              "properties": {
+                "label": { "type": "string" },
+                "text": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "correct_option_label": { "type": "string" },
+          "correct_answer_text": { "type": "string" },
+          "source": { "type": "string", "enum": ["text", "table"] },
+          "source_table_id": { "type": "string" },
+          "source_block_ids": { "type": "array", "items": { "type": "string" } },
+          "confidence": { "$ref": "blocks_schema.json#/$defs/Confidence" }
+        },
+        "additionalProperties": false
+      }
+    },
     "images": {
       "type": "array",
       "items": {
@@ -75,7 +106,8 @@
         "markdown_path": { "type": "string" },
         "html_path": { "type": "string" },
         "tables_dir": { "type": "string" },
-        "images_dir": { "type": "string" }
+        "images_dir": { "type": "string" },
+        "question_bank_path": { "type": "string" }
       },
       "additionalProperties": false
     },

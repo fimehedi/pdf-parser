@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,6 +42,7 @@ from app.tables.image_table_extractor import (
 )
 from app.text_pdf_extractor import detect_text_pdf, extract_text_blocks_from_page
 from app.config import load_yaml
+from app.semantic.mcq_extractor import build_question_bank
 
 log = logging.getLogger(__name__)
 
@@ -120,9 +122,18 @@ def parse_pdf(
     hybrid_engines = (ocr_cfg.get("ocr", {}) or {}).get("engines", ["google_vision", "tesseract", "easyocr"])
     hybrid_threshold = float((ocr_cfg.get("ocr", {}) or {}).get("confidence_threshold", 0.85))
     easyocr_gpu = bool(((ocr_cfg.get("easyocr", {}) or {}).get("gpu", False)))
+    easyocr_readtext = dict((ocr_cfg.get("easyocr", {}) or {}).get("readtext", {}) or {})
     tess_psm = int(((ocr_cfg.get("tesseract", {}) or {}).get("psm", 6)))
     tess_oem = int(((ocr_cfg.get("tesseract", {}) or {}).get("oem", 1)))
     tess_extra = str(((ocr_cfg.get("tesseract", {}) or {}).get("config_extra", "")))
+    preprocess_profile = str(((ocr_cfg.get("preprocess", {}) or {}).get("profile", "default")))
+    engine_weights = dict((ocr_cfg.get("ocr", {}) or {}).get("engine_weights", {}) or {})
+    consensus_boost = bool((ocr_cfg.get("ocr", {}) or {}).get("consensus_boost", True))
+    consensus_min_sim = float((ocr_cfg.get("ocr", {}) or {}).get("consensus_min_similarity", 0.78))
+    consensus_delta = float((ocr_cfg.get("ocr", {}) or {}).get("consensus_boost_delta", 0.08))
+    bn_easy_bonus = float((ocr_cfg.get("ocr", {}) or {}).get("bangla_easyocr_weight_bonus", 0.04))
+    _sem_cfg = ocr_cfg.get("semantic") or {}
+    extract_mcq = bool(_sem_cfg.get("extract_question_bank", True))
 
     doc = fitz.open(str(input_pdf))
 
@@ -228,7 +239,7 @@ def parse_pdf(
             )
         )
 
-        pre, signals = preprocess_page(bgr)
+        pre, signals = preprocess_page(bgr, profile=preprocess_profile)
         blur_scores.append(float(signals.blur_score or 0.0))
         pre_path = artifacts_dir / f"page_{page_index:04d}_pre.png"
         cv2.imwrite(str(pre_path), pre)
@@ -249,6 +260,12 @@ def parse_pdf(
                 tesseract_psm=tess_psm,
                 tesseract_oem=tess_oem,
                 tesseract_config_extra=tess_extra,
+                easyocr_readtext=easyocr_readtext,
+                engine_weights=engine_weights,
+                consensus_boost=consensus_boost,
+                consensus_min_similarity=consensus_min_sim,
+                consensus_boost_delta=consensus_delta,
+                bangla_easyocr_weight_bonus=bn_easy_bonus,
             )
             text = (hres.chosen.text or "").strip()
             if not text:
@@ -335,7 +352,11 @@ def parse_pdf(
         mean_table_conf=float(sum(t.confidence.score for t in tables) / len(tables)) if tables else None,
     )
     images_conf = confidence_from_images(n_images=len(extracted_images), caption_link_rate=0.0)
-    semantic_conf = confidence_from_semantic(heuristic_score=0.7)
+    question_bank = build_question_bank(blocks, tables) if extract_mcq else []
+    semantic_score = (
+        float(sum(q.confidence.score for q in question_bank) / len(question_bank)) if question_bank else 0.62
+    )
+    semantic_conf = confidence_from_semantic(heuristic_score=semantic_score)
 
     components = {"ocr": ocr_conf, "layout": layout_conf, "tables": tables_conf, "images": images_conf, "semantic": semantic_conf}
     overall = confidence_overall(components)
@@ -344,6 +365,7 @@ def parse_pdf(
     out_json = out_dir / "document.json"
     out_md = out_dir / "document.md"
     out_html = out_dir / "document.html"
+    out_qb = out_dir / "question_bank.json"
 
     cd = CanonicalDocument(
         source=Source(input_path=str(input_pdf), file_type="pdf", sha256=sha256_file(input_pdf)),
@@ -356,12 +378,14 @@ def parse_pdf(
         blocks=blocks,
         tables=tables,
         images=extracted_images,
+        question_bank=question_bank,
         exports=Exports(
             json_path=str(out_json.relative_to(out_dir)),
             markdown_path=str(out_md.relative_to(out_dir)),
             html_path=str(out_html.relative_to(out_dir)),
             tables_dir="tables",
             images_dir="images",
+            question_bank_path=str(out_qb.relative_to(out_dir)) if extract_mcq else None,
         ),
         confidence=conf_summary,
     )
@@ -376,6 +400,12 @@ def parse_pdf(
     export_markdown(cd, out_md)
     export_html(cd, out_html)
     export_review_tasks(cd, out_dir / "review_tasks.json")
+    if extract_mcq:
+        out_qb.write_text(
+            json.dumps([q.model_dump() for q in cd.question_bank], ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        log.info("Exported question bank: %s", out_qb)
 
     log.info("Exported JSON: %s", out_json)
     log.info("Exported Markdown: %s", out_md)

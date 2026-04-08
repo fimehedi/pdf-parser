@@ -3,6 +3,16 @@ ocr:
   # Engines are optional at runtime: if a dependency/credential is missing, it will be skipped.
   engines: ["google_vision", "tesseract", "easyocr"]
   confidence_threshold: 0.85
+  # When two engines agree (similar normalized text), boost confidence toward 0.90+ targets.
+  consensus_boost: true
+  consensus_min_similarity: 0.78
+  consensus_boost_delta: 0.08
+  # Extra weight for EasyOCR when Bengali script dominates (Bangla textbooks).
+  bangla_easyocr_weight_bonus: 0.04
+  engine_weights:
+    easyocr: 1.0
+    tesseract: 1.0
+    google_vision: 1.0
 
 languages:
   tesseract: ["ben", "eng"]
@@ -22,8 +32,18 @@ tesseract:
 
 easyocr:
   gpu: false
-  paragraph: false
-  batch_size: 8
+  # Passed to easyocr.Reader().readtext(...). Raise mag_ratio slightly for small Bangla type.
+  readtext:
+    mag_ratio: 1.55
+    batch_size: 8
+
+preprocess:
+  # default | bangla_scan (stronger denoise + finer adaptive threshold)
+  profile: default
+
+semantic:
+  # MCQ / question-bank extraction → document.question_bank + question_bank.json
+  extract_question_bank: true
 
 segmentation:
   mode: "blocks" # "full_page" | "blocks"

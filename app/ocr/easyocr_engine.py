@@ -29,10 +29,18 @@ def _get_reader(languages: list[str], gpu: bool) -> object:
     return reader
 
 
-def ocr_easyocr(image: np.ndarray, languages: list[str], gpu: bool = False) -> EasyOCRResult:
+def ocr_easyocr(
+    image: np.ndarray,
+    languages: list[str],
+    gpu: bool = False,
+    readtext_kwargs: dict | None = None,
+) -> EasyOCRResult:
     reader = _get_reader(languages, gpu=gpu)
     # result: list[[bbox4], text, conf]
-    result = reader.readtext(image)
+    kw = dict(readtext_kwargs or {})
+    if "batch_size" not in kw and gpu:
+        kw["batch_size"] = 8
+    result = reader.readtext(image, **kw)
     spans: list[TextSpan] = []
     texts: list[str] = []
     confs: list[float] = []

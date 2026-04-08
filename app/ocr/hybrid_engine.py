@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
-import numpy as np
+from dataclasses import dataclass
+from difflib import SequenceMatcher
 
 from app.models import Confidence, TextSpan
 from app.ocr.easyocr_engine import ocr_easyocr
 from app.ocr.google_vision_engine import ocr_google_vision
+from app.ocr.language_detector import detect_script_mix
 from app.ocr.tesseract_engine import ocr_tesseract
 
 
@@ -42,6 +43,19 @@ def _safe_call(engine: str, fn, *args, **kwargs) -> EngineOutput:
         )
 
 
+def _norm_ocr_text(t: str) -> str:
+    t = (t or "").strip().lower()
+    t = re.sub(r"\s+", " ", t)
+    return t
+
+
+def _text_similarity(a: str, b: str) -> float:
+    a, b = _norm_ocr_text(a), _norm_ocr_text(b)
+    if not a or not b:
+        return 0.0
+    return float(SequenceMatcher(None, a, b).ratio())
+
+
 def run_hybrid_ocr(
     image: np.ndarray,
     engines: list[str],
@@ -52,11 +66,16 @@ def run_hybrid_ocr(
     tesseract_psm: int = 6,
     tesseract_oem: int = 1,
     tesseract_config_extra: str = "",
+    easyocr_readtext: dict | None = None,
+    engine_weights: dict[str, float] | None = None,
+    consensus_boost: bool = True,
+    consensus_min_similarity: float = 0.78,
+    consensus_boost_delta: float = 0.08,
+    bangla_easyocr_weight_bonus: float = 0.04,
 ) -> HybridOCRResult:
     """
-    Run multiple OCR engines and choose the highest-confidence result.
-    Engines supported: "google_vision", "tesseract", "easyocr"
-    Missing deps/credentials are handled by producing an error candidate with 0 confidence.
+    Run multiple OCR engines and choose the best result using weighted scores.
+    When two top engines agree (text similarity), boost confidence toward 0.90+ targets.
     """
     tasks: list[tuple[str, object, tuple, dict]] = []
     for e in engines:
@@ -72,7 +91,14 @@ def run_hybrid_ocr(
                 )
             )
         elif e == "easyocr":
-            tasks.append(("easyocr", ocr_easyocr, (image,), {"languages": easyocr_langs, "gpu": easyocr_gpu}))
+            tasks.append(
+                (
+                    "easyocr",
+                    ocr_easyocr,
+                    (image,),
+                    {"languages": easyocr_langs, "gpu": easyocr_gpu, "readtext_kwargs": easyocr_readtext or {}},
+                )
+            )
 
     candidates: list[EngineOutput] = []
     if not tasks:
@@ -85,14 +111,52 @@ def run_hybrid_ocr(
         )
         return HybridOCRResult(chosen=fallback, candidates=[fallback], approved=False, threshold=threshold)
 
-    with ThreadPoolExecutor(max_workers=min(3, len(tasks))) as ex:
+    max_workers = max(1, min(len(tasks), 4))
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futs = [ex.submit(_safe_call, name, fn, *args, **kwargs) for (name, fn, args, kwargs) in tasks]
         for f in as_completed(futs):
             candidates.append(f.result())
 
-    # Choose best by confidence; tie-breaker by longer text.
-    candidates.sort(key=lambda c: (c.confidence.score, len(c.text)), reverse=True)
-    chosen = candidates[0]
+    weights = engine_weights or {}
+
+    def effective_score(c: EngineOutput) -> float:
+        base = float(c.confidence.score)
+        w = float(weights.get(c.engine, 1.0))
+        eff = base * w
+        mix = detect_script_mix(c.text or "")
+        if c.engine == "easyocr" and float(mix.get("bn", 0.0)) >= 0.2:
+            eff = min(1.0, eff + bangla_easyocr_weight_bonus)
+        return eff
+
+    ranked = sorted(candidates, key=lambda c: (effective_score(c), len(c.text or "")), reverse=True)
+    chosen = ranked[0]
+
+    boosted_conf = chosen.confidence
+    consensus_meta: dict = {}
+    if (
+        consensus_boost
+        and len(ranked) >= 2
+        and (chosen.text or "").strip()
+        and _text_similarity(ranked[0].text, ranked[1].text) >= float(consensus_min_similarity)
+    ):
+        top_score = max(float(ranked[0].confidence.score), float(ranked[1].confidence.score))
+        new_score = min(0.98, top_score + float(consensus_boost_delta))
+        boosted_conf = Confidence(
+            score=new_score,
+            method="hybrid_consensus_v1",
+            signals={
+                "engines": [ranked[0].engine, ranked[1].engine],
+                "similarity": _text_similarity(ranked[0].text, ranked[1].text),
+                "prior_scores": [ranked[0].confidence.score, ranked[1].confidence.score],
+            },
+        )
+        chosen = EngineOutput(
+            engine=chosen.engine,
+            text=chosen.text,
+            spans=chosen.spans,
+            confidence=boosted_conf,
+            error=chosen.error,
+        )
+
     approved = float(chosen.confidence.score) >= float(threshold)
     return HybridOCRResult(chosen=chosen, candidates=candidates, approved=approved, threshold=threshold)
-

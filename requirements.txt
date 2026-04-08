@@ -1,6 +1,7 @@
 Pillow>=10.0.0
 opencv-python>=4.8.0
-numpy>=1.26.0
+# Pin below 2.x: PyTorch/EasyOCR wheels are often built against NumPy 1.x (avoids _ARRAY_API / ABI warnings).
+numpy>=1.26.0,<2
 PyMuPDF>=1.23.0
 pytesseract>=0.3.10
 easyocr>=1.7.1

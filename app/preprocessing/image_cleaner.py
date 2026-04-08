@@ -85,19 +85,35 @@ def deskew_binarized(binary: np.ndarray) -> tuple[np.ndarray, float | None]:
     return rotated, float(angle)
 
 
-def preprocess_page(bgr: np.ndarray) -> tuple[np.ndarray, PreprocessSignals]:
+def preprocess_page(bgr: np.ndarray, profile: str = "default") -> tuple[np.ndarray, PreprocessSignals]:
+    """
+    profile:
+      - default: balanced for mixed scans
+      - bangla_scan: slightly stronger denoise + finer adaptive threshold (helps Indic + small type)
+    """
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     blur_score = _variance_of_laplacian(gray)
     gray2, dewarped = dewarp_perspective(gray)
-    den = cv2.fastNlMeansDenoising(gray2, None, h=12, templateWindowSize=7, searchWindowSize=21)
-    thr = cv2.adaptiveThreshold(
-        den,
-        255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY,
-        35,
-        11,
-    )
+    if profile == "bangla_scan":
+        den = cv2.fastNlMeansDenoising(gray2, None, h=15, templateWindowSize=7, searchWindowSize=21)
+        thr = cv2.adaptiveThreshold(
+            den,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            31,
+            9,
+        )
+    else:
+        den = cv2.fastNlMeansDenoising(gray2, None, h=12, templateWindowSize=7, searchWindowSize=21)
+        thr = cv2.adaptiveThreshold(
+            den,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            35,
+            11,
+        )
     inv = 255 - thr
     inv2, angle = deskew_binarized(inv)
     out = 255 - inv2

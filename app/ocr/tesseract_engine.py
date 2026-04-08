@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 import numpy as np
@@ -7,6 +8,10 @@ import pytesseract
 from PIL import Image
 
 from app.models import BBox, Confidence, TextSpan
+
+_tess = os.environ.get("TESSERACT_CMD") or os.environ.get("TESSERACT_PATH")
+if _tess:
+    pytesseract.pytesseract.tesseract_cmd = _tess
 
 
 @dataclass(frozen=True)

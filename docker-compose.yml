@@ -1,15 +1,28 @@
+# Build args:
+#   INSTALL_FULL_OCR=0 (default): Tesseract + base Python deps (no EasyOCR/Torch in image).
+#   INSTALL_FULL_OCR=1: full requirements.txt (EasyOCR + PyTorch + Google Vision client).
+#
+# Examples:
+#   docker compose build test
+#   INSTALL_FULL_OCR=1 docker compose build test
+
 services:
   parser:
-    build: .
+    build:
+      context: .
+      args:
+        INSTALL_FULL_OCR: ${INSTALL_FULL_OCR:-0}
     volumes:
       - ./:/app
     working_dir: /app
     command: ["python", "-m", "app.cli", "--help"]
 
   test:
-    build: .
+    build:
+      context: .
+      args:
+        INSTALL_FULL_OCR: ${INSTALL_FULL_OCR:-0}
     volumes:
       - ./:/app
     working_dir: /app
-    command: ["python", "-m", "pytest"]
-
+    command: ["python", "-m", "pytest", "tests/", "-v"]
