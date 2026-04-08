@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/canonical_document_schema.json",
+  "title": "CanonicalDocument",
+  "type": "object",
+  "required": ["schema_version", "source", "metadata", "pages", "blocks", "exports", "confidence"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "source": {
+      "type": "object",
+      "required": ["input_path", "file_type"],
+      "properties": {
+        "input_path": { "type": "string" },
+        "file_type": { "type": "string", "enum": ["pdf"] },
+        "sha256": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["created_at", "page_count", "languages"],
+      "properties": {
+        "created_at": { "type": "string" },
+        "page_count": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string" },
+        "authors": { "type": "array", "items": { "type": "string" } },
+        "languages": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": true
+    },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["page_index", "width_px", "height_px", "image_path"],
+        "properties": {
+          "page_index": { "type": "integer", "minimum": 0 },
+          "width_px": { "type": "integer", "minimum": 1 },
+          "height_px": { "type": "integer", "minimum": 1 },
+          "image_path": { "type": "string" },
+          "thumbnail_path": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "items": { "$ref": "blocks_schema.json#/$defs/Block" }
+    },
+    "tables": {
+      "type": "array",
+      "items": { "$ref": "table_schema.json#/$defs/Table" }
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["image_id", "page_index", "bbox", "path"],
+        "properties": {
+          "image_id": { "type": "string" },
+          "page_index": { "type": "integer", "minimum": 0 },
+          "bbox": { "$ref": "blocks_schema.json#/$defs/BBox" },
+          "path": { "type": "string" },
+          "caption_block_id": { "type": "string" },
+          "confidence": { "$ref": "blocks_schema.json#/$defs/Confidence" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "exports": {
+      "type": "object",
+      "required": ["json_path", "markdown_path", "html_path"],
+      "properties": {
+        "json_path": { "type": "string" },
+        "markdown_path": { "type": "string" },
+        "html_path": { "type": "string" },
+        "tables_dir": { "type": "string" },
+        "images_dir": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "confidence": {
+      "type": "object",
+      "required": ["overall", "components"],
+      "properties": {
+        "overall": { "$ref": "blocks_schema.json#/$defs/Confidence" },
+        "components": {
+          "type": "object",
+          "required": ["ocr", "layout", "tables", "images", "semantic"],
+          "properties": {
+            "ocr": { "$ref": "blocks_schema.json#/$defs/Confidence" },
+            "layout": { "$ref": "blocks_schema.json#/$defs/Confidence" },
+            "tables": { "$ref": "blocks_schema.json#/$defs/Confidence" },
+            "images": { "$ref": "blocks_schema.json#/$defs/Confidence" },
+            "semantic": { "$ref": "blocks_schema.json#/$defs/Confidence" }
+          },
+          "additionalProperties": false
+        },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+

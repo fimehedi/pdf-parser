@@ -1,0 +1,55 @@
+project:
+  name: multilingual-parser
+  version: 0.1.0
+
+io:
+  output_dir: out
+  artifacts_dir: artifacts
+  export_images: true
+  export_tables: true
+
+pdf:
+  dpi: 300
+  max_pages: null
+  page_range: null # e.g. "1-5,8"
+
+processing:
+  # If null, auto-detect (native text for real PDFs, OCR for scanned PDFs).
+  # If true, force OCR. If false, force native text extraction.
+  use_ocr: null
+
+preprocess:
+  enable: true
+  to_grayscale: true
+  deskew: true
+  denoise: true
+  binarize: true
+  adaptive_threshold: true
+  resize_factor: 1.0
+
+layout:
+  enable: true
+  strategy: "hybrid" # "simple" | "hybrid" | "ml"
+  detect_columns: true
+  detect_headers_footers: true
+  reading_order: "top_to_bottom_left_to_right"
+
+tables:
+  enable: true
+  strategy: "image_based" # "image_based" | "camelot" | "tabula"
+
+images:
+  enable: true
+  detect_figures: true
+  link_captions: true
+
+semantic:
+  enable: true
+  extract_questions: true
+  extract_lists: true
+  extract_headings: true
+
+confidence:
+  enable: true
+  policy: "v1"
+

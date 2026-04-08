@@ -1,0 +1,15 @@
+services:
+  parser:
+    build: .
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: ["python", "-m", "app.cli", "--help"]
+
+  test:
+    build: .
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: ["python", "-m", "pytest"]
+

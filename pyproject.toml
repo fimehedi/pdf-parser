@@ -1,0 +1,12 @@
+[project]
+name = "multilingual-parser"
+version = "0.1.0"
+description = "Scanned PDF processing engine for Bengali+English textbooks"
+requires-python = ">=3.10"
+readme = "README.md"
+license = { text = "Proprietary" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+

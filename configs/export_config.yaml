@@ -1,0 +1,21 @@
+export:
+  json:
+    enabled: true
+    filename: "document.json"
+  markdown:
+    enabled: true
+    filename: "document.md"
+  html:
+    enabled: true
+    filename: "document.html"
+  tables_csv:
+    enabled: true
+    dir: "tables"
+  images:
+    enabled: true
+    dir: "images"
+
+html:
+  include_page_thumbnails: false
+  include_confidence_badges: true
+

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/table_schema.json",
+  "title": "Tables",
+  "$defs": {
+    "Cell": {
+      "type": "object",
+      "required": ["row", "col", "text"],
+      "properties": {
+        "row": { "type": "integer", "minimum": 0 },
+        "col": { "type": "integer", "minimum": 0 },
+        "rowspan": { "type": "integer", "minimum": 1, "default": 1 },
+        "colspan": { "type": "integer", "minimum": 1, "default": 1 },
+        "text": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "Table": {
+      "type": "object",
+      "required": ["table_id", "page_index", "bbox", "n_rows", "n_cols", "cells", "csv_path", "confidence"],
+      "properties": {
+        "table_id": { "type": "string" },
+        "page_index": { "type": "integer", "minimum": 0 },
+        "bbox": { "$ref": "blocks_schema.json#/$defs/BBox" },
+        "n_rows": { "type": "integer", "minimum": 0 },
+        "n_cols": { "type": "integer", "minimum": 0 },
+        "cells": { "type": "array", "items": { "$ref": "#/$defs/Cell" } },
+        "csv_path": { "type": "string" },
+        "method": { "type": "string" },
+        "confidence": { "$ref": "blocks_schema.json#/$defs/Confidence" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
+

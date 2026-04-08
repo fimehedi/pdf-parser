@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/blocks_schema.json",
+  "title": "Blocks",
+  "$defs": {
+    "BBox": {
+      "type": "object",
+      "required": ["x0", "y0", "x1", "y1"],
+      "properties": {
+        "x0": { "type": "number" },
+        "y0": { "type": "number" },
+        "x1": { "type": "number" },
+        "y1": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "Confidence": {
+      "type": "object",
+      "required": ["score", "method"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "method": { "type": "string" },
+        "signals": {
+          "type": "object",
+          "additionalProperties": { "type": ["number", "string", "boolean", "null"] }
+        }
+      },
+      "additionalProperties": false
+    },
+    "BlockType": {
+      "type": "string",
+      "enum": [
+        "heading",
+        "paragraph",
+        "list_item",
+        "question",
+        "answer",
+        "footer",
+        "header",
+        "table",
+        "figure",
+        "equation",
+        "unknown"
+      ]
+    },
+    "TextSpan": {
+      "type": "object",
+      "required": ["text", "bbox", "confidence"],
+      "properties": {
+        "text": { "type": "string" },
+        "bbox": { "$ref": "#/$defs/BBox" },
+        "lang": { "type": "string" },
+        "confidence": { "$ref": "#/$defs/Confidence" }
+      },
+      "additionalProperties": false
+    },
+    "Block": {
+      "type": "object",
+      "required": ["block_id", "page_index", "type", "bbox", "reading_order", "text", "spans", "confidence"],
+      "properties": {
+        "block_id": { "type": "string" },
+        "page_index": { "type": "integer", "minimum": 0 },
+        "type": { "$ref": "#/$defs/BlockType" },
+        "bbox": { "$ref": "#/$defs/BBox" },
+        "reading_order": { "type": "integer", "minimum": 0 },
+        "column_index": { "type": "integer", "minimum": 0 },
+        "text": { "type": "string" },
+        "spans": { "type": "array", "items": { "$ref": "#/$defs/TextSpan" } },
+        "derived": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "confidence": { "$ref": "#/$defs/Confidence" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
+

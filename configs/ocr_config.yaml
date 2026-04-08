@@ -1,0 +1,31 @@
+ocr:
+  # Hybrid pipeline engines to attempt per text block, in parallel where possible.
+  # Engines are optional at runtime: if a dependency/credential is missing, it will be skipped.
+  engines: ["google_vision", "tesseract", "easyocr"]
+  confidence_threshold: 0.85
+
+languages:
+  tesseract: ["ben", "eng"]
+  easyocr: ["bn", "en"]
+
+google_vision:
+  enabled: false
+  # Authentication is provided via Application Default Credentials.
+  # Typical setup: set GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account.json
+  # See docs/01_ocr_pipeline.md for details.
+
+tesseract:
+  psm: 6
+  oem: 1
+  config_extra: ""
+  timeout_seconds: 60
+
+easyocr:
+  gpu: false
+  paragraph: false
+  batch_size: 8
+
+segmentation:
+  mode: "blocks" # "full_page" | "blocks"
+  min_block_area_px: 8000
+
