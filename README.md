@@ -212,6 +212,7 @@ Set **`LOG_LEVEL=DEBUG`** (or `INFO`) for more logs.
 | **Tesseract only** | `configs/ocr_preset_tesseract_only.yaml` | Tesseract (`ben`+`eng`). Docker: default image is enough. |
 | **Tesseract + EasyOCR** | `configs/ocr_preset_tesseract_easyocr.yaml` | Tesseract + EasyOCR (full `requirements.txt`). Docker: **`INSTALL_FULL_OCR=1`** image. |
 | **Tesseract + EasyOCR + Google Vision** | `configs/ocr_preset_tesseract_easyocr_gcv.yaml` | All of the above + Vision API credentials in **`.env`**. Docker: **`multilingual-parser:full`** + mount credentials. |
+| **Google Cloud Vision only** | `configs/ocr_preset_google_vision_only.yaml` | Vision API + credentials only (no Tesseract/EasyOCR for **block** OCR). Install **`google-cloud-vision`**. *Table cells* on scanned pages still use Tesseract if tables are detected—install Tesseract for full table support. |
 
 Replace `input/mybook.pdf` and `out/run1` with your paths.
 
@@ -229,6 +230,10 @@ python -m app.cli --input input/mybook.pdf --out out/run1 --use-ocr \
 # 3) Tesseract + EasyOCR + Google Vision (set GOOGLE_APPLICATION_CREDENTIALS first)
 python -m app.cli --input input/mybook.pdf --out out/run1 --use-ocr \
   --ocr-config configs/ocr_preset_tesseract_easyocr_gcv.yaml
+
+# 4) Google Cloud Vision only (blocks use Vision; see preset file re: tables + Tesseract)
+python -m app.cli --input input/mybook.pdf --out out/run1 --use-ocr \
+  --ocr-config configs/ocr_preset_google_vision_only.yaml
 ```
 
 **Docker** (project must be mounted; adjust image tag):
@@ -251,6 +256,14 @@ docker run --rm -v "$(pwd):/app" -w /app \
   multilingual-parser:full \
   python -m app.cli --input /app/input/mybook.pdf --out /app/out/run1 --use-ocr \
   --ocr-config /app/configs/ocr_preset_tesseract_easyocr_gcv.yaml
+
+# 4) Google Vision only — full image + credentials (same as above for env)
+docker run --rm -v "$(pwd):/app" -w /app \
+  -v "/ABSOLUTE/PATH/service-account.json:/secrets/gcp.json:ro" \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp.json \
+  multilingual-parser:full \
+  python -m app.cli --input /app/input/mybook.pdf --out /app/out/run1 --use-ocr \
+  --ocr-config /app/configs/ocr_preset_google_vision_only.yaml
 ```
 
 ### Other bundled profiles
@@ -322,7 +335,7 @@ python -m app.cli --input input/mybook.pdf --out out --use-ocr \
 | Path | Purpose |
 |------|---------|
 | `app/` | CLI, pipeline, OCR engines, tables, exports |
-| `configs/` | Parser + OCR YAML, including **`ocr_preset_tesseract_only.yaml`**, **`ocr_preset_tesseract_easyocr.yaml`**, **`ocr_preset_tesseract_easyocr_gcv.yaml`**, Vision sample JSON |
+| `configs/` | Parser + OCR YAML, including **`ocr_preset_google_vision_only.yaml`** and other **`ocr_preset_*.yaml`**, Vision sample JSON |
 | `schemas/` | JSON schemas for outputs |
 | `docs/` | Extra technical notes |
 | `tests/` | Pytest suite |
