@@ -1,387 +1,334 @@
-# Scanned textbook PDF engine (Bengali + English)
+# PDF parser (Bengali + English)
 
-PDF processing for textbooks and question banks: **Bengali + English** mixed pages, multi-column layouts, **tables**, and **MCQ-style question extraction** (stem, options ক/খ/গ/ঘ or A–D, answer keys when present).
-
-The engine can:
-
-- Use **native text** on real PDFs (selectable text) with `pdfplumber` tables.
-- Use **OCR** on scanned PDFs: **Tesseract 5** (`ben`+`eng`) + **EasyOCR** (`bn`+`en`), optionally **Google Cloud Vision**.
+Turn textbook and question-bank PDFs into structured text: **blocks**, **tables** (CSV), **MCQ-style items** (JSON), and **HTML/Markdown** for review. Works on **text-based PDFs** (native text) and **scanned PDFs** (OCR).
 
 ---
 
-## Quick start
+## Prerequisites (what you need)
+
+| Requirement | Required? | Notes |
+|---------------|------------|--------|
+| **Python 3.10+** | Yes (local) | 3.11+ recommended. Not needed if you only use Docker. |
+| **Tesseract OCR** + **ben** + **eng** data | Yes (local) | Pre-installed in our Docker image. |
+| **This repo + dependencies** | Yes | `pip install -r requirements.txt` locally, or use Docker. |
+| **EasyOCR / PyTorch** | Optional | For hybrid OCR. Included in `requirements.txt`. Docker: use **`INSTALL_FULL_OCR=1`** when building. |
+| **Google Cloud Vision** | Optional | Enable Vision API + service account JSON. See [Google Cloud Vision](#google-cloud-vision-optional). |
+
+**Included Python libraries (see `requirements.txt`):** PyMuPDF, OpenCV, Tesseract bindings, EasyOCR, pdfplumber, Pydantic, Typer, etc.
+
+---
+
+## Two ways to run: local or Docker
+
+| | **Local (your machine)** | **Docker** |
+|---|--------------------------|------------|
+| **Best for** | Daily development, GPU on your GPU setup, editing configs | Clean, repeatable runs; no local Python/Tesseract install |
+| **Tesseract** | You install it (macOS/Windows/Linux) | Included in the image |
+| **EasyOCR** | From `pip install -r requirements.txt` | Use a **full** image: `INSTALL_FULL_OCR=1` |
+| **Important** | Run CLI from project folder; paths are relative to that folder | Always **mount the project**: `-v "$(pwd):/app" -w /app` so `input/` and `out/` exist inside the container |
+
+---
+
+## Local setup
+
+### 1. Python environment
 
 ```bash
+cd pdf-parser
 python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+```
+
+**Activate:**
+
+- macOS / Linux: `source .venv/bin/activate`
+- Windows (PowerShell): `.\.venv\Scripts\activate`
+
+### 2. Install Python packages
+
+```bash
 pip install -r requirements.txt
 ```
 
-**System:** Python **3.10+** (3.11+ recommended), **Tesseract** with **Bengali (`ben`)** and **English (`eng`)** trained data.
+### 3. Install Tesseract (system)
 
-### macOS (Homebrew)
+OCR needs **Tesseract** with **Bengali (`ben`)** and **English (`eng`)** language data.
+
+**macOS (Homebrew)**
 
 ```bash
 brew install tesseract tesseract-lang
 tesseract --list-langs | egrep 'ben|eng'
 ```
 
-### Windows
+**Windows**
 
-There is no `tesseract-lang` package name on Windows like Homebrew; you install **Tesseract** and ensure **`ben`** and **`eng`** `.traineddata` files are present (installer options or manual download).
-
-**Option A — winget (recommended if available)**
-
-```powershell
-winget install --id UB-Mannheim.TesseractOCR
-```
-
-Use the installer UI to include **additional language data**, or place `ben.traineddata` / `eng.traineddata` under your Tesseract `tessdata` folder (often `C:\Program Files\Tesseract-OCR\tessdata`).
-
-**Option B — Chocolatey**
+- Install via [winget](https://winget.run/) (e.g. `UB-Mannheim.TesseractOCR`), [Chocolatey](https://chocolatey.org/), or [Scoop](https://scoop.sh/).
+- Ensure **`ben`** and **`eng`** appear in `tesseract --list-langs` (add [tessdata](https://github.com/tesseract-ocr/tessdata) files if needed).
+- Put `tesseract.exe` on your **PATH** (restart the terminal after install).
 
 ```powershell
-choco install tesseract
-```
-
-If `ben`/`eng` are missing, download traineddata files from the [tessdata](https://github.com/tesseract-ocr/tessdata) or [tessdata_best](https://github.com/tesseract-ocr/tessdata_best) repository into that `tessdata` directory.
-
-**Option C — Scoop**
-
-```powershell
-scoop install tesseract
-```
-
-**Verify languages (PowerShell or Command Prompt)**
-
-```powershell
-tesseract --list-langs
 tesseract --list-langs | findstr /i "ben eng"
 ```
 
-**PATH:** Ensure the folder containing `tesseract.exe` is on your `PATH` (installer usually offers this). Restart the terminal after installing.
+**Linux (Debian/Ubuntu example)**
 
-**Run the CLI on Windows**
+```bash
+sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-ben tesseract-ocr-eng
+tesseract --list-langs | grep -E 'ben|eng'
+```
+
+If Tesseract is installed but not found, set (example for Apple Silicon Homebrew):
+
+```bash
+export TESSERACT_CMD="/opt/homebrew/bin/tesseract"
+```
+
+### 4. Optional: environment file
+
+Copy `.env.example` to `.env` and adjust (e.g. `GOOGLE_APPLICATION_CREDENTIALS` for Vision API).
+
+### 5. Run on a PDF
+
+Put a PDF in your project (e.g. `input/mybook.pdf`) and run:
+
+```bash
+python -m app.cli --input input/mybook.pdf --out out --use-ocr
+```
+
+- **`--use-ocr`** — use the OCR pipeline (needed for scans).
+- Omit **`--use-ocr`** to let the tool **auto-detect** (text PDF vs scan), or use **`--no-use-ocr`** for text-only extraction.
+
+**Windows path example:**
 
 ```powershell
-.\.venv\Scripts\activate
-python -m app.cli --input C:\path\to\book.pdf --out out
+python -m app.cli --input C:\path\to\pdf-parser\input\mybook.pdf --out out --use-ocr
 ```
+
+---
+
+## Docker setup
+
+Images install **Tesseract** and OS libraries for you. Python deps come from **`requirements-base.txt`** by default (**lighter**, no EasyOCR/Torch). For **EasyOCR** + Google client libraries, build with **`INSTALL_FULL_OCR=1`**.
+
+### Build
 
 ```bash
-# Typical CLI (macOS / Linux / Git Bash on Windows)
-python -m app.cli --input path/to/book.pdf --out out
-```
-
-**Full-quality Bangla OCR profile** (see [Full mode vs normal mode](#full-mode-vs-normal-mode)):
-
-```bash
-python -m app.cli --input path/to/book.pdf --out out --use-ocr \
-  --ocr-config configs/ocr_config.full.yaml --dpi 350
-```
-
-```powershell
-# Windows (PowerShell): line continuation is the backtick `
-python -m app.cli --input C:\path\to\book.pdf --out out --use-ocr `
-  --ocr-config configs/ocr_config.full.yaml --dpi 350
-```
-
----
-
-## CLI reference
-
-There is **no subcommand** — pass options directly to `python -m app.cli`.
-
-| Option | Short | Default | Description |
-|--------|--------|---------|-------------|
-| `--input` | `-i` | *(required)* | Path to input `.pdf` |
-| `--out` | `-o` | `out` | Output directory |
-| `--dpi` | | `300` | Render DPI for OCR (higher often helps small Bangla text; try **300–400**) |
-| `--config` | | `configs/parser_config.yaml` | Parser YAML (`processing.use_ocr`, `pdf.dpi`, …) if file exists |
-| `--ocr-config` | | `configs/ocr_config.yaml` | OCR/hybrid YAML (`ocr.engines`, thresholds, GPU, preprocess profile, …) if file exists |
-| `--use-ocr` | | | Force OCR path |
-| `--no-use-ocr` | | | Force native text path (no OCR) |
-
-**Help:**
-
-```bash
-python -m app.cli --help
-```
-
-**Logging:** set `LOG_LEVEL` (e.g. `DEBUG`, `INFO`).
-
----
-
-## OCR on or off (`use_ocr`)
-
-| Situation | Command / config |
-|-----------|-------------------|
-| **Auto** (default) | Omit both flags. If most pages have enough selectable text → native path; else OCR. |
-| **Force OCR** (scans, or you want images/artifacts) | `--use-ocr` |
-| **Force native text** (real PDF, no OCR) | `--no-use-ocr` |
-| **From parser config** | `configs/parser_config.yaml` → `processing.use_ocr`: `null` / `true` / `false` |
-
-CLI flags override the parser config when you pass `--use-ocr` / `--no-use-ocr`.
-
----
-
-## Full mode vs normal mode
-
-These are **not** separate CLI switches — they are **OCR configuration profiles** selected with `--ocr-config`.
-
-### Normal mode — `configs/ocr_config.yaml` (default)
-
-- **Engines:** `google_vision`, `tesseract`, `easyocr` (each runs if dependencies/credentials allow).
-- **Auto-approve threshold:** **0.85** (blocks below → `review_tasks.json`).
-- **EasyOCR GPU:** **off** by default (`easyocr.gpu: false`).
-- **Preprocess:** `preprocess.profile: default`.
-- **Consensus / weights:** enabled with moderate defaults (two engines can boost score when they agree).
-
-**Typical command:**
-
-```bash
-python -m app.cli --input book.pdf --out out --use-ocr \
-  --ocr-config configs/ocr_config.yaml
-```
-
-(Omit `--ocr-config` if the default path is fine.)
-
-### Full mode — `configs/ocr_config.full.yaml`
-
-Aimed at **high-quality Bangla scans** (question banks, dense text):
-
-- **Engines:** **Tesseract + EasyOCR only** (no Google in the list — add it in a copy of the file if needed).
-- **Threshold:** **0.90** (stricter auto-approve; tune to your QA needs).
-- **Consensus:** stronger boost when two engines agree (`consensus_boost_delta: 0.10`).
-- **EasyOCR:** **`gpu: true`** + tuned `readtext` (e.g. `mag_ratio`, thresholds).
-- **Preprocess:** `bangla_scan` (stronger denoise / threshold tuning for Indic text).
-- **Engine weights:** slightly favor EasyOCR for Bangla-heavy lines.
-
-**Typical command:**
-
-```bash
-python -m app.cli --input book.pdf --out out --use-ocr \
-  --ocr-config configs/ocr_config.full.yaml --dpi 350
-```
-
-You can **duplicate** `ocr_config.full.yaml`, edit engines/threshold/GPU, and point `--ocr-config` at your file.
-
----
-
-## GPU (EasyOCR)
-
-EasyOCR uses **PyTorch**. GPU acceleration applies when:
-
-1. **`easyocr.gpu: true`** in the active OCR YAML (`configs/ocr_config.full.yaml` sets this).
-2. A **CUDA-capable NVIDIA GPU** is installed with a **PyTorch build that matches your CUDA** (common on Linux/Windows workstations).
-3. Dependencies are installed from **`requirements.txt`** (includes `easyocr` and pulls PyTorch as a dependency).
-
-**CPU-only:** set `easyocr.gpu: false` in your OCR config (as in normal `ocr_config.yaml`). Parsing still works; EasyOCR is slower.
-
-**Apple Silicon (M1/M2/M3):** EasyOCR/PyTorch may run on **MPS** depending on your PyTorch build; GPU flags in YAML still map to `Reader(..., gpu=True)`. If GPU init fails, use **`gpu: false`** or install a PyTorch build with MPS support and test in a small script.
-
-**Docker default image** uses **`requirements-base.txt`** (no EasyOCR/Torch). For EasyOCR inside Docker, build with **`INSTALL_FULL_OCR=1`** (see [Docker](#docker)); **NVIDIA Container Toolkit** is required on the host to pass a GPU into the container.
-
-**Checklist for NVIDIA + CUDA (Linux example):**
-
-- NVIDIA driver + CUDA runtime compatible with your PyTorch wheel.
-- In OCR YAML: `easyocr.gpu: true`.
-- Optional: increase `--dpi` (e.g. **350–400**) for small Bangla text on scans.
-
----
-
-## OCR configuration keys (YAML)
-
-File: **`--ocr-config`** path (default `configs/ocr_config.yaml`).
-
-| Section | Purpose |
-|---------|---------|
-| `ocr.engines` | List: `google_vision`, `tesseract`, `easyocr` |
-| `ocr.confidence_threshold` | Block auto-approve cutoff (e.g. **0.85** normal, **0.90** full) |
-| `ocr.consensus_boost` | When two top engines agree on text, raise confidence (toward 0.9+) |
-| `ocr.consensus_min_similarity` | Minimum string similarity (0–1) to treat as “agreement” |
-| `ocr.consensus_boost_delta` | How much to add to confidence on agreement (capped) |
-| `ocr.bangla_easyocr_weight_bonus` | Extra score weight for EasyOCR when Bengali script dominates |
-| `ocr.engine_weights` | Per-engine multipliers (`easyocr`, `tesseract`, `google_vision`) |
-| `languages.tesseract` | e.g. `["ben", "eng"]` → combined `ben+eng` |
-| `languages.easyocr` | e.g. `["bn", "en"]` |
-| `tesseract.psm` / `oem` / `config_extra` | Tesseract page/legacy modes |
-| `easyocr.gpu` | `true` / `false` |
-| `easyocr.readtext` | Passed to `readtext(...)` (e.g. `mag_ratio`, `text_threshold`, `batch_size`) |
-| `preprocess.profile` | `default` or `bangla_scan` |
-| `semantic.extract_question_bank` | `true` / `false` — MCQ extraction + `question_bank.json` |
-
-Parser-only file: **`--config`** → `configs/parser_config.yaml` (e.g. `processing.use_ocr`, `pdf.dpi`).
-
----
-
-## Outputs (`--out`)
-
-| Path | Description |
-|------|-------------|
-| `document.json` | Canonical document (pages, blocks, tables, **question_bank**, confidence) |
-| `document.md` | Reading-order Markdown |
-| `document.html` | HTML with confidence badges |
-| `question_bank.json` | Extracted MCQ-style items (if `semantic.extract_question_bank` is true) |
-| `tables/*.csv` | Tables (native or image-grid OCR) |
-| `review_tasks.json` | Low-confidence OCR blocks (OCR path) |
-| `artifacts/*.png` | Rendered + preprocessed pages (OCR path) |
-
----
-
-## Google Cloud Vision (optional)
-
-Add `google_vision` to `ocr.engines` and configure Application Default Credentials:
-
-```bash
-export GOOGLE_APPLICATION_CREDENTIALS="/absolute/path/to/service_account.json"
-python -m app.cli --input book.pdf --out out --use-ocr
-```
-
----
-
-## Docker
-
-**Light image** (Tesseract; no EasyOCR/Torch by default):
-
-```bash
+# Default (Tesseract + base Python deps)
 docker build -t multilingual-parser:latest .
-```
 
-**Full OCR dependencies** (EasyOCR + Google Vision client libraries):
-
-```bash
+# Full OCR stack (EasyOCR, PyTorch, google-cloud-vision from requirements.txt)
 docker build --build-arg INSTALL_FULL_OCR=1 -t multilingual-parser:full .
 ```
 
-**CLI help:**
+### Run (always mount the project)
+
+Without **`-v "$(pwd):/app"`**, paths like `input/book.pdf` **do not exist** in the container.
 
 ```bash
-docker run --rm multilingual-parser:latest python -m app.cli --help
+docker run --rm \
+  -v "$(pwd):/app" \
+  -w /app \
+  multilingual-parser:latest \
+  python -m app.cli \
+    --input /app/input/mybook.pdf \
+    --out /app/out \
+    --use-ocr
 ```
 
-**Example run** (mount project and PDF; **no** `parse` subcommand):
+Results appear in **`./out`** on your host.
+
+**Full OCR image** (replace tag if you built `:full`):
+
+```bash
+docker run --rm -v "$(pwd):/app" -w /app multilingual-parser:full \
+  python -m app.cli --input /app/input/mybook.pdf --out /app/out --use-ocr \
+  --ocr-config /app/configs/ocr_config.full.yaml --dpi 350
+```
+
+**Google Cloud Vision in Docker:** mount the JSON key and set the env var:
 
 ```bash
 docker run --rm \
   -v "$(pwd):/app" -w /app \
-  -v "/path/to/pdf_dir:/input:ro" \
+  -v "/path/on/host/service-account.json:/secrets/gcp.json:ro" \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp.json \
   multilingual-parser:full \
-  python -m app.cli \
-    --input "/input/your.pdf" \
-    --out /app/out \
-    --use-ocr \
-    --ocr-config /app/configs/ocr_config.full.yaml
+  python -m app.cli --input /app/input/mybook.pdf --out /app/out --use-ocr \
+  --ocr-config /app/configs/ocr_config.google_vision.yaml
 ```
 
-**GPU in Docker:** use NVIDIA runtime (`--gpus all`) and a CUDA-capable **full** image; verify PyTorch/CUDA inside the image for your hardware.
+**GPU (Linux + NVIDIA):** add `--gpus all` and use a CUDA-capable setup. **Docker Desktop on Mac** does not expose an NVIDIA GPU the same way.
 
-See **[Testing through Docker](#testing-through-docker)** below for `docker compose` / `pytest` commands.
-
----
-
-## Testing through Docker
-
-The image already includes **Tesseract** (`ben` + `eng`) and system libraries; Python deps come from **`requirements-base.txt`** by default (lighter, **no EasyOCR/Torch**). Unit tests (`pytest`) run against your **mounted** project tree.
-
-### 1. Build and run tests (default / slim image)
-
-From the repo root:
+### Tests in Docker
 
 ```bash
 docker compose build test
 docker compose run --rm test
 ```
 
-Or:
+Or: `make docker-compose-test` (same idea).
 
-```bash
-make docker-compose-test
-```
-
-You should see **`4 passed`** (or current test count).
-
-### 2. Full OCR stack in the image (EasyOCR + PyTorch)
-
-Match a local “full” install:
+Full deps for tests that need EasyOCR:
 
 ```bash
 INSTALL_FULL_OCR=1 docker compose build test
 INSTALL_FULL_OCR=1 docker compose run --rm test
 ```
 
-Or:
+---
+
+## CLI options (reference)
+
+There is **no subcommand** — options go directly on `python -m app.cli`.
+
+| Option | Short | Default | Description |
+|--------|--------|---------|-------------|
+| `--input` | `-i` | *(required)* | Path to the PDF |
+| `--out` | `-o` | `out` | Output folder |
+| `--dpi` | | `300` | Render DPI for OCR (try **300–400** for small Bangla text) |
+| `--config` | | `configs/parser_config.yaml` | Parser settings (if file exists) |
+| `--ocr-config` | | `configs/ocr_config.yaml` | OCR / hybrid engine settings (if file exists) |
+| `--use-ocr` | | | Force OCR |
+| `--no-use-ocr` | | | Force native text only |
 
 ```bash
-make docker-build-full
-docker run --rm -v "$(pwd):/app" -w /app multilingual-parser:full python -m pytest tests/ -v
+python -m app.cli --help
 ```
 
-### 3. Parse a PDF inside Docker
+Set **`LOG_LEVEL=DEBUG`** (or `INFO`) for more logs.
 
-Mount the project so paths like `input/…` and `out/` work on the host:
+---
+
+## OCR modes and config files
+
+**How it works:** For each text region, the pipeline runs the engines listed under **`ocr.engines`** in your **`--ocr-config`** file, then **keeps the best-scoring result** (hybrid). Smaller presets only change which engines participate.
+
+**Auto-detect OCR on/off:** omit `--use-ocr` — if most pages have selectable text, native extraction is used; otherwise OCR.
+
+### Presets: Tesseract only / + EasyOCR / + Google Vision
+
+| What you want | Preset file | You need installed |
+|---------------|-------------|----------------------|
+| **Tesseract only** | `configs/ocr_preset_tesseract_only.yaml` | Tesseract (`ben`+`eng`). Docker: default image is enough. |
+| **Tesseract + EasyOCR** | `configs/ocr_preset_tesseract_easyocr.yaml` | Tesseract + EasyOCR (full `requirements.txt`). Docker: **`INSTALL_FULL_OCR=1`** image. |
+| **Tesseract + EasyOCR + Google Vision** | `configs/ocr_preset_tesseract_easyocr_gcv.yaml` | All of the above + Vision API credentials in **`.env`**. Docker: **`multilingual-parser:full`** + mount credentials. |
+
+Replace `input/mybook.pdf` and `out/run1` with your paths.
+
+**Local (same pattern for all three — only `--ocr-config` changes):**
 
 ```bash
-docker compose build parser   # or: docker build -t multilingual-parser:latest .
-docker run --rm \
-  -v "$(pwd):/app" -w /app \
-  multilingual-parser:latest \
-  python -m app.cli \
-    --input /app/input/bangla-sahitto.pdf \
-    --out /app/out \
-    --use-ocr
+# 1) Tesseract only
+python -m app.cli --input input/mybook.pdf --out out/run1 --use-ocr \
+  --ocr-config configs/ocr_preset_tesseract_only.yaml
+
+# 2) Tesseract + EasyOCR
+python -m app.cli --input input/mybook.pdf --out out/run1 --use-ocr \
+  --ocr-config configs/ocr_preset_tesseract_easyocr.yaml
+
+# 3) Tesseract + EasyOCR + Google Vision (set GOOGLE_APPLICATION_CREDENTIALS first)
+python -m app.cli --input input/mybook.pdf --out out/run1 --use-ocr \
+  --ocr-config configs/ocr_preset_tesseract_easyocr_gcv.yaml
 ```
 
-Outputs appear under **`./out`** on your machine.
+**Docker** (project must be mounted; adjust image tag):
 
-For **full** OCR in the container (EasyOCR), build with `INSTALL_FULL_OCR=1` and use that image tag instead of `latest` if you built `multilingual-parser:full`.
+```bash
+# 1) Tesseract only — default slim image
+docker run --rm -v "$(pwd):/app" -w /app multilingual-parser:latest \
+  python -m app.cli --input /app/input/mybook.pdf --out /app/out/run1 --use-ocr \
+  --ocr-config /app/configs/ocr_preset_tesseract_only.yaml
 
-**Note:** The default **`.dockerignore`** excludes `input/*.pdf` from the **build context** only; bind-mounting `./` still exposes your `input/` folder at runtime.
+# 2) + EasyOCR — full image
+docker run --rm -v "$(pwd):/app" -w /app multilingual-parser:full \
+  python -m app.cli --input /app/input/mybook.pdf --out /app/out/run1 --use-ocr \
+  --ocr-config /app/configs/ocr_preset_tesseract_easyocr.yaml
+
+# 3) + Google Vision — full image + JSON key
+docker run --rm -v "$(pwd):/app" -w /app \
+  -v "/ABSOLUTE/PATH/service-account.json:/secrets/gcp.json:ro" \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp.json \
+  multilingual-parser:full \
+  python -m app.cli --input /app/input/mybook.pdf --out /app/out/run1 --use-ocr \
+  --ocr-config /app/configs/ocr_preset_tesseract_easyocr_gcv.yaml
+```
+
+### Other bundled profiles
+
+| Profile | File | Notes |
+|---------|------|--------|
+| **Default hybrid** | `configs/ocr_config.yaml` | Vision + Tesseract + EasyOCR (if each is available) |
+| **Full / Bangla scans** | `configs/ocr_config.full.yaml` | Higher threshold, `bangla_scan` preprocess; engine list is Tesseract + EasyOCR unless you edit it |
+| **Vision-first** | `configs/ocr_config.google_vision.yaml` | Tuned for Cloud Vision |
+
+Example (full Bangla profile):
+
+```bash
+python -m app.cli --input input/mybook.pdf --out out/run1 --use-ocr \
+  --ocr-config configs/ocr_config.full.yaml --dpi 350
+```
+
+Edit any YAML to tune **`ocr.engines`**, **`easyocr.gpu`**, **`preprocess.profile`**, etc.
+
+---
+
+## GPU (EasyOCR, local)
+
+Set **`easyocr.gpu: true`** in your OCR YAML (e.g. full profile). Requires **NVIDIA + CUDA** PyTorch on Linux/Windows. On **Mac**, GPU support is limited; use **`gpu: false`** if you see errors.
+
+---
+
+## Outputs (written to `--out`)
+
+| File / folder | Contents |
+|----------------|----------|
+| `document.json` | Full structured document + confidence |
+| `document.md` | Reading order, Markdown |
+| `document.html` | Review UI with confidence badges |
+| `question_bank.json` | Detected MCQ-style items (if enabled in OCR config) |
+| `tables/*.csv` | Tables |
+| `review_tasks.json` | Low-confidence OCR blocks (for human review) |
+| `artifacts/*.png` | Page images (OCR path) |
+
+---
+
+## Google Cloud Vision (optional)
+
+1. Enable **Cloud Vision API** on Google Cloud and create a **service account** + **JSON key**.
+2. Copy `configs/google_vision_service_account.sample.json` → `configs/google_vision_service_account.json` and paste your real key (this file is gitignored).
+3. Copy `.env.example` → `.env` and set **`GOOGLE_APPLICATION_CREDENTIALS`** (or export the variable in the shell).
+4. Use a config that lists **`google_vision`** under **`ocr.engines`**, e.g. **`configs/ocr_config.google_vision.yaml`**.
+
+```bash
+python -m app.cli --input input/mybook.pdf --out out --use-ocr \
+  --ocr-config configs/ocr_config.google_vision.yaml
+```
 
 ---
 
 ## Troubleshooting
 
-### `TesseractNotFoundError` / `No such file or directory: 'tesseract'`
-
-Install Tesseract on the host (see [macOS](#macos-homebrew) / [Windows](#windows)). Ensure the directory containing `tesseract` is on your **`PATH`** (open a **new** terminal after installing).
-
-Check:
-
-```bash
-which tesseract
-tesseract --version
-```
-
-If `tesseract` is installed but not found (e.g. GUI apps or IDEs with a minimal `PATH`), set the binary explicitly:
-
-```bash
-export TESSERACT_CMD="/opt/homebrew/bin/tesseract"   # Apple Silicon Homebrew
-# export TESSERACT_CMD="/usr/local/bin/tesseract"    # Intel Homebrew
-```
-
-The app reads **`TESSERACT_CMD`** (or **`TESSERACT_PATH`**) in `app/ocr/tesseract_engine.py`.
-
-### NumPy / PyTorch / EasyOCR warnings (`_ARRAY_API`, “compiled using NumPy 1.x”)
-
-The project pins **`numpy<2`** in `requirements.txt` so PyTorch and EasyOCR work reliably. After changing requirements, reinstall:
-
-```bash
-pip install -r requirements.txt
-```
+| Problem | What to try |
+|---------|-------------|
+| **`TesseractNotFoundError`** | Install Tesseract; check **`which tesseract`**. Set **`TESSERACT_CMD`** to the full path. |
+| **`Invalid value for '--input'`** | Use a real path. In Docker, mount the repo and use e.g. **`/app/input/file.pdf`**. |
+| **NumPy / PyTorch warnings** | Project pins **`numpy<2`**. Run **`pip install -r requirements.txt`** again. |
+| **Google Vision errors** | Check API enabled, billing if required, and **`GOOGLE_APPLICATION_CREDENTIALS`** points to a valid JSON file. |
 
 ---
 
-## Repo layout
+## Repository layout
 
-- `app/` — pipeline, OCR, layout, tables, exporters, MCQ extraction
-- `configs/` — `parser_config.yaml`, `ocr_config.yaml`, `ocr_config.full.yaml`
-- `schemas/` — JSON Schema for canonical output
-- `docs/` — deeper design notes
-- `context/` — product constraints and policies
+| Path | Purpose |
+|------|---------|
+| `app/` | CLI, pipeline, OCR engines, tables, exports |
+| `configs/` | Parser + OCR YAML, including **`ocr_preset_tesseract_only.yaml`**, **`ocr_preset_tesseract_easyocr.yaml`**, **`ocr_preset_tesseract_easyocr_gcv.yaml`**, Vision sample JSON |
+| `schemas/` | JSON schemas for outputs |
+| `docs/` | Extra technical notes |
+| `tests/` | Pytest suite |
 
 ---
 
 ## License
 
-See `pyproject.toml` (proprietary unless changed).
+See `pyproject.toml`.

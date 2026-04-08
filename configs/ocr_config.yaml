@@ -19,10 +19,11 @@ languages:
   easyocr: ["bn", "en"]
 
 google_vision:
-  enabled: false
-  # Authentication is provided via Application Default Credentials.
-  # Typical setup: set GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account.json
-  # See docs/01_ocr_pipeline.md for details.
+  # Set false to skip the API even if "google_vision" is listed in ocr.engines.
+  enabled: true
+  # Use a service account JSON with the Cloud Vision API enabled on your GCP project.
+  # Copy configs/google_vision_service_account.sample.json → configs/google_vision_service_account.json
+  # and set GOOGLE_APPLICATION_CREDENTIALS in .env (see .env.example).
 
 tesseract:
   psm: 6

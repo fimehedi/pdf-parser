@@ -1,0 +1,41 @@
+# OCR engines: Tesseract only (no EasyOCR, no Google Cloud Vision).
+# Requires: Tesseract with ben+eng installed on the system / in Docker image.
+
+ocr:
+  engines: ["tesseract"]
+  confidence_threshold: 0.85
+  consensus_boost: true
+  consensus_min_similarity: 0.78
+  consensus_boost_delta: 0.08
+  bangla_easyocr_weight_bonus: 0.04
+  engine_weights:
+    tesseract: 1.0
+
+languages:
+  tesseract: ["ben", "eng"]
+  easyocr: ["bn", "en"]
+
+google_vision:
+  enabled: false
+
+tesseract:
+  psm: 6
+  oem: 1
+  config_extra: ""
+  timeout_seconds: 60
+
+easyocr:
+  gpu: false
+  readtext:
+    mag_ratio: 1.55
+    batch_size: 8
+
+preprocess:
+  profile: default
+
+semantic:
+  extract_question_bank: true
+
+segmentation:
+  mode: "blocks"
+  min_block_area_px: 8000

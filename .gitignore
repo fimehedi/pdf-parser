@@ -9,4 +9,7 @@ __pycache__/
 .env
 out/
 artifacts/
+# Real GCP service account keys (never commit)
+configs/google_vision_service_account.json
+secrets/
 

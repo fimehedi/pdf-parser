@@ -3,9 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import typer
+from dotenv import load_dotenv
 
 from app.config import load_parser_config
 from app.logging_config import configure_logging
+from app.ocr.gcv_env import apply_credentials_to_environ
 from app.pipeline import parse_pdf
 
 def parse(
@@ -27,6 +29,8 @@ def parse(
     ),
 ):
     """Parse an educational PDF; OCR only when needed or when cmg=true."""
+    load_dotenv()
+    apply_credentials_to_environ()
     configure_logging()
     cfg = load_parser_config(config) if config.exists() else None
     effective_use_ocr = use_ocr if use_ocr is not None else (cmg if cmg is not None else (cfg.use_ocr if cfg else None))

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from app.models import BBox, Confidence, TextSpan
+from app.ocr.gcv_env import apply_credentials_to_environ
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,7 @@ def ocr_google_vision(image: np.ndarray) -> GoogleVisionResult:
     Notes:
       - The API does not always return per-word confidences for all outputs; we compute a proxy.
     """
+    apply_credentials_to_environ()
     try:
         from google.cloud import vision  # type: ignore
     except Exception as e:  # pragma: no cover

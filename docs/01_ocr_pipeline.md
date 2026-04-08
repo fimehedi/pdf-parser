@@ -30,8 +30,8 @@ Low-confidence blocks are exported to `out/review_tasks.json`, including:
 - candidate previews for comparison
 
 ### Google Vision setup
-1. Install dependency: `google-cloud-vision`
-2. Provide credentials with ADC:
-   - Set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account.json`
-3. Enable Vision API in your GCP project
+1. Install dependency: `google-cloud-vision` (included in `requirements.txt`).
+2. Enable **Cloud Vision API** on your GCP project; create a service account and download its JSON key.
+3. Copy `configs/google_vision_service_account.sample.json` to `configs/google_vision_service_account.json`, fill in real values, and set `GOOGLE_APPLICATION_CREDENTIALS` in `.env` (see `.env.example`). The CLI calls `load_dotenv()` so the path can be relative to the working directory.
+4. Keep `google_vision.enabled: true` in `configs/ocr_config.yaml` (or use `configs/ocr_config.google_vision.yaml`).
 

@@ -42,6 +42,7 @@ from app.tables.image_table_extractor import (
 )
 from app.text_pdf_extractor import detect_text_pdf, extract_text_blocks_from_page
 from app.config import load_yaml
+from app.ocr.gcv_env import warn_if_google_vision_unconfigured
 from app.semantic.mcq_extractor import build_question_bank
 
 log = logging.getLogger(__name__)
@@ -119,7 +120,10 @@ def parse_pdf(
             ocr_cfg = {}
 
     easyocr_langs = (ocr_cfg.get("languages", {}) or {}).get("easyocr", ["bn", "en"])
-    hybrid_engines = (ocr_cfg.get("ocr", {}) or {}).get("engines", ["google_vision", "tesseract", "easyocr"])
+    hybrid_engines = list((ocr_cfg.get("ocr", {}) or {}).get("engines", ["google_vision", "tesseract", "easyocr"]))
+    if not (ocr_cfg.get("google_vision", {}) or {}).get("enabled", True):
+        hybrid_engines = [e for e in hybrid_engines if e != "google_vision"]
+    warn_if_google_vision_unconfigured(hybrid_engines)
     hybrid_threshold = float((ocr_cfg.get("ocr", {}) or {}).get("confidence_threshold", 0.85))
     easyocr_gpu = bool(((ocr_cfg.get("easyocr", {}) or {}).get("gpu", False)))
     easyocr_readtext = dict((ocr_cfg.get("easyocr", {}) or {}).get("readtext", {}) or {})
